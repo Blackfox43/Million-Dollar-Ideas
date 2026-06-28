@@ -1,0 +1,6 @@
+{
+  "name": "Million Dollar Ideas",
+  "description": "Offline-first side-hustle and startup idea generator with 1-tap copy, local favorites, and 1080x1080 Instagram-ready canvas image card export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
