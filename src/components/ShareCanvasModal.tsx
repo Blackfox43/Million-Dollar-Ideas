@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download, X, Copy, Palette, CheckCircle, Sparkles, Check } from 'lucide-react';
+import { Download, X, Copy, Palette, CheckCircle, Sparkles, Check, Play, Share2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { type Idea } from '../db';
 import { enrichIdeaBlueprint } from '../utils/blueprint';
@@ -9,6 +9,7 @@ interface ShareCanvasModalProps {
   idea: Idea | null;
   isOpen: boolean;
   onClose: () => void;
+  initialFormat?: 'square' | 'vertical';
 }
 
 const GRADIENTS = [
@@ -19,13 +20,14 @@ const GRADIENTS = [
   { name: 'Deep Crimson', from: '#701a1a', to: '#2d0000', accent: '#f87171' },
 ];
 
-export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasModalProps) {
+export default function ShareCanvasModal({ idea, isOpen, onClose, initialFormat }: ShareCanvasModalProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selectedGradient, setSelectedGradient] = useState(0);
   const { isPremiumUser, setPaywallModal, awardXp, unlockBadge } = useAppStore();
   const [removeWatermark, setRemoveWatermark] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'square' | 'vertical'>('square');
 
   // Viral template states
   const [selectedTemplate, setSelectedTemplate] = useState('discover');
@@ -46,6 +48,13 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
   };
 
   const blueprint = enrichIdeaBlueprint(idea || dummyIdea);
+
+  // Sync format on modal open
+  useEffect(() => {
+    if (isOpen) {
+      setExportFormat(initialFormat || 'square');
+    }
+  }, [isOpen, initialFormat]);
 
   // Sound feedback synthesizer
   const playSound = (freqs: number[], duration: number = 0.08) => {
@@ -88,6 +97,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
   };
 
   const wrapText = (
+    ctx: CanvasRenderingContext2D,
     text: string,
     x: number,
     y: number,
@@ -95,11 +105,6 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
     lineHeight: number,
     maxLines: number = 99
   ) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return y;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return y;
-
     const words = text.split(' ');
     let line = '';
     let currentY = y;
@@ -129,162 +134,271 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
 
   const drawCard = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !idea) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear Canvas - 1080x1080 resolution for high-quality export
-    ctx.clearRect(0, 0, 1080, 1080);
+    const isVertical = exportFormat === 'vertical';
+    const canvasW = 1080;
+    const canvasH = isVertical ? 1920 : 1080;
+
+    // Clear Canvas
+    ctx.clearRect(0, 0, canvasW, canvasH);
 
     const gradInfo = GRADIENTS[selectedGradient];
 
     // 1. Draw Background Gradient
-    const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
+    const gradient = ctx.createLinearGradient(0, 0, canvasW, canvasH);
     gradient.addColorStop(0, gradInfo.from);
     gradient.addColorStop(1, gradInfo.to);
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1080);
+    ctx.fillRect(0, 0, canvasW, canvasH);
 
     // 2. Draw subtle tech-grid background accents
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
     ctx.lineWidth = 1;
-    for (let i = 0; i < 1080; i += 60) {
+    for (let i = 0; i < canvasW; i += 60) {
       ctx.beginPath();
       ctx.moveTo(i, 0);
-      ctx.lineTo(i, 1080);
+      ctx.lineTo(i, canvasH);
       ctx.stroke();
+    }
+    for (let i = 0; i < canvasH; i += 60) {
       ctx.beginPath();
       ctx.moveTo(0, i);
-      ctx.lineTo(1080, i);
+      ctx.lineTo(canvasW, i);
       ctx.stroke();
     }
 
-    // 3. Draw rounded inner card container
-    const cardX = 80;
-    const cardY = 80;
-    const cardW = 920;
-    const cardH = 820;
-    const radius = 32;
-
-    ctx.fillStyle = 'rgba(10, 10, 10, 0.75)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 2;
-
-    // Custom Round Rect drawing path
-    ctx.beginPath();
-    ctx.moveTo(cardX + radius, cardY);
-    ctx.lineTo(cardX + cardW - radius, cardY);
-    ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
-    ctx.lineTo(cardX + cardW, cardY + cardH - radius);
-    ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
-    ctx.lineTo(cardX + radius, cardY + cardH);
-    ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
-    ctx.lineTo(cardX, cardY + radius);
-    ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 4. Header Section details
-    ctx.fillStyle = gradInfo.accent;
-    ctx.font = '900 18px sans-serif';
-    ctx.fillText('$', 130, 150);
-
     // Retrieve enriched blueprint details
-    const blueprint = enrichIdeaBlueprint(idea);
+    const activeBlueprint = enrichIdeaBlueprint(idea);
 
-    // Niche & Rarity capsule tag
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(750, 125, 200, 34, 17);
-    ctx.fill();
-    ctx.stroke();
+    if (isVertical) {
+      // 3. Draw vertical card container
+      const cardX = 80;
+      const cardY = 180;
+      const cardW = 920;
+      const cardH = 1560;
+      const radius = 32;
 
-    ctx.fillStyle = gradInfo.accent;
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${blueprint.rarity.toUpperCase()} CLASS`, 850, 147);
-    ctx.textAlign = 'left'; // Restore left-align
+      ctx.fillStyle = 'rgba(10, 10, 10, 0.84)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 3;
 
-    // 5. Draw Title (Enriched Startup Name)
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 44px "Inter", sans-serif';
-    const endTitleY = wrapText(blueprint.startupName, 130, 230, 820, 52, 2);
-
-    // Draw one-line pitch
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.font = 'italic 18px "Inter", sans-serif';
-    const endPitchY = wrapText(`"${blueprint.pitch}"`, 130, endTitleY + 12, 820, 26, 2);
-
-    // Draw thin separator line
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.beginPath();
-    ctx.moveTo(130, endPitchY + 12);
-    ctx.lineTo(950, endPitchY + 12);
-    ctx.stroke();
-
-    // 6. Draw Problem Section
-    ctx.fillStyle = gradInfo.accent;
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText('THE PROBLEM:', 130, endPitchY + 48);
-
-    ctx.fillStyle = '#f3f4f6';
-    ctx.font = 'italic 20px "Inter", sans-serif';
-    const endProblemY = wrapText(blueprint.problem, 130, endPitchY + 78, 820, 30, 2);
-
-    // 7. Draw The Solution Idea
-    ctx.fillStyle = gradInfo.accent;
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText('THE SOLUTION IDEA:', 130, endProblemY + 32);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'medium 21px "Inter", sans-serif';
-    const endIdeaY = wrapText(blueprint.solution, 130, endProblemY + 55, 820, 32, 2);
-
-    // 8. Draw Monetization Paths (Enriched Revenue Model)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.font = 'bold 16px monospace';
-    ctx.fillText('REVENUE MODEL PATHWAYS:', 130, endIdeaY + 30);
-
-    ctx.font = '18px "Inter", sans-serif';
-    ctx.fillStyle = '#e5e7eb';
-    let pathY = endIdeaY + 65;
-
-    blueprint.revenueModel.slice(0, 3).forEach((path, index) => {
-      // Draw pretty bullet dot/check
-      ctx.fillStyle = gradInfo.accent;
       ctx.beginPath();
-      ctx.arc(145, pathY - 6, 5, 0, Math.PI * 2);
+      ctx.moveTo(cardX + radius, cardY);
+      ctx.lineTo(cardX + cardW - radius, cardY);
+      ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+      ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+      ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+      ctx.lineTo(cardX + radius, cardY + cardH);
+      ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+      ctx.lineTo(cardX, cardY + radius);
+      ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+      ctx.closePath();
       ctx.fill();
+      ctx.stroke();
 
-      // Draw text
+      // Heading hook line
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText('⚡ STEAL THIS SIDE HUSTLE ⚡', cardX + 60, cardY + 90);
+
+      // Title (Startup Name + Budget)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 50px "Inter", sans-serif';
+      const budgetText = idea.budget === 'Free' || idea.budget === '0' || idea.budget === '$0' ? '$0' : idea.budget;
+      const endTitleY = wrapText(ctx, `TITLE: ${activeBlueprint.startupName.toUpperCase()} (${budgetText})`, cardX + 60, cardY + 175, 800, 58);
+
+      // Hook Block
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText('HOOK PLAYBOOK:', cardX + 60, endTitleY + 80);
+
+      ctx.fillStyle = '#fbbf24'; // beautiful gold hook color
+      ctx.font = 'bold italic 28px "Inter", sans-serif';
+      const hookText = `"${idea.viral_angle || `I built this side-hustle in under ${activeBlueprint.launchTimeline}. Here is the complete blueprint.`}"`;
+      const endHookY = wrapText(ctx, hookText, cardX + 60, endTitleY + 125, 800, 36);
+
+      // Separator
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(cardX + 60, endHookY + 45);
+      ctx.lineTo(cardX + cardW - 60, endHookY + 45);
+      ctx.stroke();
+
+      // Problem Section
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('THE REAL-WORLD PROBLEM:', cardX + 60, endHookY + 95);
+
       ctx.fillStyle = '#e5e7eb';
-      pathY = wrapText(path, 170, pathY, 780, 26, 1) + 8;
-    });
+      ctx.font = 'italic 22px "Inter", sans-serif';
+      const endProblemY = wrapText(ctx, `"${activeBlueprint.problem}"`, cardX + 60, endHookY + 135, 800, 32);
 
-    // 9. Draw Difficulty and Budget Tags
-    const footerY = 820;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.font = '14px monospace';
-    ctx.fillText(`DIFFICULTY: ${idea.difficulty.toUpperCase()}`, 130, footerY);
-    ctx.fillText(`EST. BUDGET: ${idea.budget}`, 390, footerY);
-    ctx.fillText(`TIME: ${idea.time_to_launch.toUpperCase()}`, 610, footerY);
+      // Solution Section
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('THE PLAYBOOK SOLUTION:', cardX + 60, endProblemY + 55);
 
-    // 10. Watermark on absolute outer bottom
-    if (!removeWatermark || !isPremiumUser) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'medium 24px "Inter", sans-serif';
+      const endIdeaY = wrapText(ctx, activeBlueprint.solution, cardX + 60, endProblemY + 95, 800, 34);
+
+      // Revenue Paths
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('REVENUE CHANNELS:', cardX + 60, endIdeaY + 55);
+
+      let pathY = endIdeaY + 95;
+      activeBlueprint.revenueModel.slice(0, 2).forEach((item) => {
+        ctx.fillStyle = gradInfo.accent;
+        ctx.beginPath();
+        ctx.arc(cardX + 75, pathY - 8, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#f3f4f6';
+        ctx.font = 'bold 21px "Inter", sans-serif';
+        pathY = wrapText(ctx, `✔ ${item}`, cardX + 100, pathY, 760, 30) + 12;
+      });
+
+      // Tags block
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      ctx.font = 'bold 13px monospace';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(`RARITY: ${activeBlueprint.rarity.toUpperCase()}`, cardX + 60, cardY + cardH - 120);
+      ctx.fillText(`DIFFICULTY: ${idea.difficulty.toUpperCase()}`, cardX + 360, cardY + cardH - 120);
+      ctx.fillText(`TIME: ${idea.time_to_launch.toUpperCase()}`, cardX + 660, cardY + cardH - 120);
+
+      // Watermark
+      if (!removeWatermark || !isPremiumUser) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚡ EXPORTED FROM MILLION DOLLAR IDEAS APP ⚡', canvasW / 2, cardY + cardH - 60);
+        ctx.textAlign = 'left';
+      }
+
+    } else {
+      // 3. Draw rounded 1:1 inner card container
+      const cardX = 80;
+      const cardY = 80;
+      const cardW = 920;
+      const cardH = 820;
+      const radius = 32;
+
+      ctx.fillStyle = 'rgba(10, 10, 10, 0.82)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(cardX + radius, cardY);
+      ctx.lineTo(cardX + cardW - radius, cardY);
+      ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+      ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+      ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+      ctx.lineTo(cardX + radius, cardY + cardH);
+      ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+      ctx.lineTo(cardX, cardY + radius);
+      ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Header Section dollar sign
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = '900 18px sans-serif';
+      ctx.fillText('$', 130, 150);
+
+      // Niche & Rarity tag capsule
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(750, 125, 200, 34, 17);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = 'bold 11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('⚡ CREATED WITH MILLION DOLLAR IDEAS APP • MILLIONDOLLARIDEAS.APP ⚡', 540, 1015);
+      ctx.fillText(`${activeBlueprint.rarity.toUpperCase()} CLASS`, 850, 147);
       ctx.textAlign = 'left';
+
+      // Draw Title (Enriched Startup Name)
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 44px "Inter", sans-serif';
+      const endTitleY = wrapText(ctx, activeBlueprint.startupName, 130, 230, 820, 52, 2);
+
+      // Draw one-line pitch
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.font = 'italic 18px "Inter", sans-serif';
+      const endPitchY = wrapText(ctx, `"${activeBlueprint.pitch}"`, 130, endTitleY + 12, 820, 26, 2);
+
+      // Separator
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(130, endPitchY + 12);
+      ctx.lineTo(950, endPitchY + 12);
+      ctx.stroke();
+
+      // Problem Section
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('THE PROBLEM:', 130, endPitchY + 48);
+
+      ctx.fillStyle = '#f3f4f6';
+      ctx.font = 'italic 20px "Inter", sans-serif';
+      const endProblemY = wrapText(ctx, activeBlueprint.problem, 130, endPitchY + 78, 820, 30, 2);
+
+      // The Solution Idea
+      ctx.fillStyle = gradInfo.accent;
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('THE SOLUTION IDEA:', 130, endProblemY + 32);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'medium 21px "Inter", sans-serif';
+      const endIdeaY = wrapText(ctx, activeBlueprint.solution, 130, endProblemY + 55, 820, 32, 2);
+
+      // Monetization Strategy
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('REVENUE MODEL PATHWAYS:', 130, endIdeaY + 30);
+
+      ctx.font = '18px "Inter", sans-serif';
+      ctx.fillStyle = '#e5e7eb';
+      let pathY = endIdeaY + 65;
+
+      activeBlueprint.revenueModel.slice(0, 3).forEach((item) => {
+        ctx.fillStyle = gradInfo.accent;
+        ctx.beginPath();
+        ctx.arc(145, pathY - 6, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#e5e7eb';
+        pathY = wrapText(ctx, item, 170, pathY, 780, 26, 1) + 8;
+      });
+
+      // Difficulty / Specs block
+      const footerY = 820;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.font = '14px monospace';
+      ctx.fillText(`DIFFICULTY: ${idea.difficulty.toUpperCase()}`, 130, footerY);
+      ctx.fillText(`EST. BUDGET: ${idea.budget}`, 390, footerY);
+      ctx.fillText(`TIME: ${idea.time_to_launch.toUpperCase()}`, 610, footerY);
+
+      // Outer Watermark
+      if (!removeWatermark || !isPremiumUser) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚡ CREATED WITH MILLION DOLLAR IDEAS APP • MILLIONDOLLARIDEAS.APP ⚡', 540, 1015);
+        ctx.textAlign = 'left';
+      }
     }
   };
 
   useEffect(() => {
     if (isOpen && idea) {
-      // Small timeout to guarantee DOM is mounted
       const timer = setTimeout(() => {
         drawCard();
         if (canvasRef.current) {
@@ -292,22 +406,22 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
             setPreviewSrc(canvasRef.current.toDataURL('image/png'));
           } catch (e) {}
         }
-      }, 100);
+      }, 120);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, idea, selectedGradient, removeWatermark, isPremiumUser]);
+  }, [isOpen, idea, selectedGradient, removeWatermark, isPremiumUser, exportFormat]);
 
   if (!isOpen || !idea) return null;
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    playSound([440, 554.37, 659.25, 880], 0.12); // happy download arpeggio
+    playSound([440, 554.37, 659.25, 880], 0.12);
 
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     const slug = idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    link.download = `m_idea_${slug}.png`;
+    link.download = `m_idea_${slug}_${exportFormat}.png`;
     link.href = dataUrl;
     link.click();
 
@@ -339,7 +453,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
         }
       }, 'image/png');
     } catch (err) {
-      // Fallback for browser constraints
+      // Fallback
       const text = `💡 MILLION DOLLAR IDEA BLUEPRINT 💡\n\nTitle: ${blueprint.startupName}\nPitch: ${blueprint.pitch}\nNiche: ${idea.niche}\nProblem: ${blueprint.problem}\nSolution: ${blueprint.solution}\n\nRevenue Model:\n${blueprint.revenueModel.map((m, i) => `${i + 1}. ${m}`).join('\n')}\n\nGenerated with Million Dollar Ideas App.`;
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -364,7 +478,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
         {/* Header bar */}
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div className="flex items-center space-x-2">
-            <Palette className="w-5 h-5 text-emerald-400 animate-pulse" />
+            <Share2 className="w-5 h-5 text-emerald-400 animate-pulse" />
             <h4 className="text-sm font-bold text-white tracking-tight uppercase font-mono">
               Export Social Card
             </h4>
@@ -380,18 +494,52 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
           </button>
         </div>
 
-        {/* Hidden Canvas - actual resolution is high (1080x1080) */}
+        {/* Format Switcher Selector */}
+        <div className="flex bg-zinc-950/80 p-1 rounded-xl border border-zinc-850">
+          <button
+            onClick={() => {
+              playSound([329.63], 0.04);
+              setExportFormat('square');
+            }}
+            className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider font-mono transition active:scale-98 cursor-pointer text-center ${
+              exportFormat === 'square'
+                ? 'bg-emerald-500 text-zinc-950 font-black shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-350'
+            }`}
+          >
+            Feed Card (1:1)
+          </button>
+          <button
+            onClick={() => {
+              playSound([392.00], 0.04);
+              setExportFormat('vertical');
+            }}
+            className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider font-mono transition active:scale-98 cursor-pointer text-center ${
+              exportFormat === 'vertical'
+                ? 'bg-emerald-500 text-zinc-950 font-black shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-350'
+            }`}
+          >
+            Reel / TikTok (9:16)
+          </button>
+        </div>
+
+        {/* Hidden Canvas - actual resolution is high (1080x1080 or 1080x1920) */}
         <canvas
           ref={canvasRef}
           width={1080}
-          height={1080}
+          height={exportFormat === 'vertical' ? 1920 : 1080}
           className="hidden"
         />
 
         {/* Canvas visual preview */}
-        <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-zinc-800/80 bg-zinc-950/60 flex items-center justify-center shadow-inner">
-          <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 text-[8px] font-mono tracking-widest text-zinc-400 uppercase">
-            1080x1080 PREVIEW
+        <div 
+          className={`relative w-full rounded-2xl overflow-hidden border border-zinc-800/80 bg-zinc-950/60 flex items-center justify-center shadow-inner ${
+            exportFormat === 'vertical' ? 'aspect-[9/16] max-h-[380px] mx-auto' : 'aspect-square'
+          }`}
+        >
+          <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 text-[8px] font-mono tracking-widest text-zinc-400 uppercase z-10">
+            {exportFormat === 'vertical' ? '1080x1920 PREVIEW' : '1080x1080 PREVIEW'}
           </div>
           {idea && previewSrc && (
             <img
@@ -403,9 +551,9 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
           )}
         </div>
 
-        {/* Gradient Selectors */}
+        {/* Gradient Theme Selectors */}
         <div className="space-y-2">
-          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono">
+          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono text-left">
             Choose Theme Colorway
           </label>
           <div className="flex items-center justify-between gap-2.5">
@@ -422,7 +570,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
                 className={`flex-1 aspect-square rounded-xl border relative transition-all active:scale-95 cursor-pointer ${
                   selectedGradient === idx
                     ? 'border-white scale-105 ring-2 ring-white/10'
-                    : 'border-zinc-800 hover:border-zinc-700'
+                    : 'border-zinc-800 hover:border-zinc-750'
                 }`}
                 title={g.name}
               >
@@ -438,10 +586,10 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
 
         {/* Viral Share Caption Templates */}
         <div className="space-y-2 border-t border-zinc-800/60 pt-4">
-          <label className="block text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+          <label className="block text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono text-left">
             🔥 Viral Share Captions (+100 XP)
           </label>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
             {[
               {
                 id: 'discover',
@@ -487,7 +635,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
         </div>
 
         {/* Premium Upgrade Toggle */}
-        <div className="bg-zinc-950/70 border border-zinc-800/60 p-4 rounded-2xl flex items-center justify-between">
+        <div className="bg-zinc-950/70 border border-zinc-850 p-4 rounded-2xl flex items-center justify-between">
           <div className="text-left">
             <p className="text-xs font-bold text-white tracking-wide">Clean White-label Export</p>
             <p className="text-[10px] text-zinc-500 font-mono">Remove MillionDollarIdeas branding watermark</p>
@@ -501,7 +649,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
               className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono border uppercase tracking-wider transition cursor-pointer ${
                 removeWatermark
                   ? 'bg-emerald-500 text-zinc-950 border-emerald-500'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-750'
               }`}
             >
               {removeWatermark ? 'Removed' : 'Hide Watermark'}
@@ -520,7 +668,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
           )}
         </div>
 
-        {/* Bottom actions */}
+        {/* Bottom Actions */}
         <div className="flex gap-4">
           <button
             onClick={handleCopy}
@@ -534,7 +682,7 @@ export default function ShareCanvasModal({ idea, isOpen, onClose }: ShareCanvasM
             ) : (
               <>
                 <Copy className="w-4 h-4" />
-                <span>Copy File/Text</span>
+                <span>Copy Card</span>
               </>
             )}
           </button>

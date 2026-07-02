@@ -8,6 +8,7 @@ import {
 import { useAppStore } from '../store';
 import { db, type Idea } from '../db';
 import ShareCanvasModal from './ShareCanvasModal';
+import GoogleAd from './GoogleAd';
 import { enrichIdeaBlueprint, RARITY_STYLES, type Rarity, type StartupBlueprint } from '../utils/blueprint';
 
 export default function IdeaGenerator() {
@@ -24,6 +25,8 @@ export default function IdeaGenerator() {
     updateStats,
     stats,
     streak,
+    crazyModeEnabled,
+    setCrazyModeEnabled,
   } = useAppStore();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -33,6 +36,7 @@ export default function IdeaGenerator() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isExpanding, setIsExpanding] = useState(false);
   const [blueprintTab, setBlueprintTab] = useState<'concept' | 'financials' | 'launch'>('concept');
+  const [shareFormat, setShareFormat] = useState<'square' | 'vertical'>('square');
 
   // Sound feedback synthesizer
   const playSound = (freqs: number[], type: OscillatorType = 'sine', duration: number = 0.08) => {
@@ -330,6 +334,50 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                       );
                     })}
                   </div>
+                </div>
+
+                {/* Crazy Ideas Mode Unlockable Toggle */}
+                <div className="bg-gradient-to-r from-purple-500/10 via-fuchsia-500/5 to-transparent border border-purple-500/25 p-3.5 rounded-2xl flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-sm">🤪</span>
+                      <span className="text-xs font-bold text-purple-300 font-sans tracking-tight">Crazy Ideas Mode</span>
+                      <span className="text-[8px] bg-purple-500/20 text-purple-300 font-mono font-bold px-1.5 py-0.5 rounded uppercase">Day 7 Reward</span>
+                    </div>
+                    <p className="text-[9px] text-zinc-400 font-sans max-w-xs text-left">
+                      Unlock wild, extremely funny, high-conversion viral concepts when ON!
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (streak < 7) {
+                        playSound([150, 100], 'sawtooth', 0.15);
+                        showToast('🔒 Locked: Reach a consecutive 7-day active streak on Hustler Hub to unlock Crazy Mode!');
+                        return;
+                      }
+                      playSound([crazyModeEnabled ? 300 : 600], 'sine', 0.05);
+                      setCrazyModeEnabled(!crazyModeEnabled);
+                      showToast(crazyModeEnabled ? 'Crazy Ideas Mode Disabled' : '🤪 Crazy Ideas Mode Enabled! Generate now!');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono border uppercase tracking-wider transition-all active:scale-95 cursor-pointer ${
+                      streak < 7
+                        ? 'bg-zinc-950/40 text-zinc-650 border-zinc-900/60 opacity-60'
+                        : crazyModeEnabled
+                        ? 'bg-purple-500 text-zinc-950 border-purple-400 font-black shadow-md shadow-purple-500/20'
+                        : 'bg-zinc-900 text-purple-300 border-purple-500/30 hover:border-purple-500/60'
+                    }`}
+                  >
+                    {streak < 7 ? (
+                      <span className="flex items-center space-x-1">
+                        <Lock className="w-3 h-3 text-zinc-550" />
+                        <span>Locked</span>
+                      </span>
+                    ) : crazyModeEnabled ? (
+                      'ON'
+                    ) : (
+                      'OFF'
+                    )}
+                  </button>
                 </div>
 
                 {/* Secondary Filters Grid */}
@@ -671,17 +719,34 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                       </button>
                     </div>
 
-                    {/* Share social card button */}
-                    <button
-                      onClick={() => {
-                        playSound([440, 554], 'sine', 0.08);
-                        setShowShareModal(true);
-                      }}
-                      className="flex items-center space-x-2 bg-zinc-950 border border-zinc-800 text-zinc-200 font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wide font-mono hover:text-white transition active:scale-95 cursor-pointer"
-                    >
-                      <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Export Card</span>
-                    </button>
+                    {/* Share social card button formats group */}
+                    <div className="flex space-x-1.5">
+                      <button
+                        onClick={() => {
+                          playSound([440, 554], 'sine', 0.08);
+                          setShareFormat('square');
+                          setShowShareModal(true);
+                        }}
+                        className="flex items-center space-x-1 px-3 py-2 bg-zinc-950 border border-zinc-800 text-zinc-200 font-bold rounded-xl text-[10px] uppercase tracking-wide font-mono hover:text-white hover:border-zinc-700 transition active:scale-95 cursor-pointer"
+                        title="Export 1:1 Feed Card"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Export 1:1</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          playSound([440, 554, 659], 'sine', 0.08);
+                          setShareFormat('vertical');
+                          setShowShareModal(true);
+                        }}
+                        className="flex items-center space-x-1 px-3 py-2 bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold rounded-xl text-[10px] uppercase tracking-wide font-mono hover:bg-purple-500/20 hover:text-purple-100 transition active:scale-95 cursor-pointer"
+                        title="Export 9:16 vertical Reel / TikTok card"
+                      >
+                        <span className="text-xs">🎬</span>
+                        <span>Reel/TikTok</span>
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               );
@@ -717,6 +782,11 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Dynamic Ad Placement */}
+        <div className="mt-4 max-w-md mx-auto w-full">
+          <GoogleAd slot="generator-bottom" />
+        </div>
       </div>
 
       {/* Thumb-Reachable Primary Call-To-Action (Duolingo meets YC feel) */}
@@ -745,6 +815,7 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
         idea={currentIdea}
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
+        initialFormat={shareFormat}
       />
     </div>
   );

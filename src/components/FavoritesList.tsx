@@ -4,6 +4,7 @@ import { Heart, Trash2, Copy, Share2, HelpCircle, Check, ChevronDown, FolderHear
 import { useAppStore } from '../store';
 import { db, type Idea } from '../db';
 import ShareCanvasModal from './ShareCanvasModal';
+import GoogleAd from './GoogleAd';
 import { enrichIdeaBlueprint, RARITY_STYLES } from '../utils/blueprint';
 
 export default function FavoritesList() {
@@ -394,6 +395,11 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
           </AnimatePresence>
         </div>
       )}
+
+      {/* Vault footer ad */}
+      <div className="mt-4 max-w-md mx-auto w-full">
+        <GoogleAd slot="favorites-bottom" />
+      </div>
 
       {/* Share card popup drawer */}
       <ShareCanvasModal

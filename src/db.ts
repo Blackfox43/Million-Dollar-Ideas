@@ -159,6 +159,66 @@ export async function seedDatabaseIfEmpty() {
         monetization: ['Premium sound pack expansion at $19', 'Yearly sleep-wellness premium tier at $59/yr'],
         difficulty: 'Easy',
         viral_angle: 'The auditory brain hack that forces your mind into deep restorative REM sleep.'
+      },
+      {
+        id: 'streak-crazy-1',
+        title: 'PigeonPost.io',
+        niche: 'Crazy Ideas',
+        budget: '$0',
+        time_to_launch: '1d',
+        problem: 'Corporate lawyers fear digital eavesdropping and cyber-security breaches of sensitive physical contract drafts.',
+        idea: 'A modern dashboard to lease homing pigeons trained to transport localized USB flash drives securely across city rooftops with zero digital footprint.',
+        monetization: ['Per-delivery flight fee ($25)', 'Monthly corporate pigeon retainer ($199/mo)'],
+        difficulty: 'Easy',
+        viral_angle: 'How corporate legal teams are going medieval to beat state-sponsored cyber hackers.'
+      },
+      {
+        id: 'streak-crazy-2',
+        title: 'PitchRoaster AI',
+        niche: 'Crazy Ideas',
+        budget: '$0',
+        time_to_launch: '1d',
+        problem: 'Founders live in an echo chamber of polite feedback and have no idea why investors are actually laughing at their pitch deck.',
+        idea: 'An AI-powered pitch deck analyzer that roasts your startup slide-by-slide using aggressive, loud Gordon Ramsay voice syntax and culinary insults.',
+        monetization: ['1 free roast per day', 'Pro Unlimited Roasts with custom video avatars ($29/mo)'],
+        difficulty: 'Easy',
+        viral_angle: 'This AI just told me my slide deck is so raw it is still trying to raise a seed round.'
+      },
+      {
+        id: 'streak-crazy-3',
+        title: 'HostageVault',
+        niche: 'Crazy Ideas',
+        budget: '$1k',
+        time_to_launch: '1w',
+        problem: 'Procrastinators bypass screen-time blockers too easily and lack any real financial skin-in-the-game to finish their tasks.',
+        idea: 'A smart-contract browser extension that locks your cold-wallet funds in escrow. If you don\'t commit code or submit a document by 5 PM, it donates $50 of your crypto to your most hated political rival.',
+        monetization: ['2% platform escrow fee', 'Hostage-insurance subscription ($15/mo)'],
+        difficulty: 'Med',
+        viral_angle: 'I had to write 1000 words of my thesis or this app would donate my rent money to my ex-landlord.'
+      },
+      {
+        id: 'streak-crazy-4',
+        title: 'AbductionGuard',
+        niche: 'Crazy Ideas',
+        budget: '$1k',
+        time_to_launch: '1w',
+        problem: 'Paranoid believers and deep-space enthusiasts worry about career disruption in the event of an unexpected alien abduction.',
+        idea: 'A decentralized, peer-to-peer insurance pool that payouts premium dividends if a member produces verifiable subcutaneous alien tracking implants.',
+        monetization: ['Flat pool management fee (5%)', 'UFO hazard map overlay subscription ($5/mo)'],
+        difficulty: 'Med',
+        viral_angle: 'The decentralized insurance protocol paying out in crypto if the mothership takes you.'
+      },
+      {
+        id: 'streak-crazy-5',
+        title: 'CoFounderMatch',
+        niche: 'Crazy Ideas',
+        budget: '$0',
+        time_to_launch: '1d',
+        problem: 'Startup co-founders break up because they have misaligned personality types and arguing gaming styles.',
+        idea: 'A Tinder-style matchmaking app for entrepreneurs that blocks messaging until both parties complete a 3-hour speedrun of Overcooked or Portal cooperative mode.',
+        monetization: ['Match-boosting credits', 'Premium Myers-Briggs compatibility profiles ($19/mo)'],
+        difficulty: 'Easy',
+        viral_angle: 'Why your next startup partner needs to be vetted by a gaming cooperative puzzle test before you sign the incorporation papers.'
       }
     ];
 

@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Database, Shield, CreditCard, Sparkles, AlertCircle, WifiOff, RefreshCw, Smartphone, Play, LogOut, CheckCircle,
-  Award, Zap, Lock, Check, Trophy, Calendar, Sparkle
+  Award, Zap, Lock, Check, Trophy, Calendar, Sparkle, Share2, HelpCircle
 } from 'lucide-react';
 import { useAppStore } from '../store';
+import GoogleAd from './GoogleAd';
+import FounderQuiz from './FounderQuiz';
 
 export default function HustleHub() {
   const {
@@ -18,7 +20,11 @@ export default function HustleHub() {
     badges,
     checkedInToday,
     checkIn,
+    awardXp,
   } = useAppStore();
+
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [copiedStreak, setCopiedStreak] = useState(false);
 
   const playSound = (freqs: number[], type: OscillatorType = 'sine', duration: number = 0.08) => {
     try {
@@ -103,6 +109,31 @@ export default function HustleHub() {
         </span>
       </div>
 
+      {/* "Which Idea Are You?" Founder Personality Quiz Banner */}
+      <div className="bg-gradient-to-br from-violet-500/15 via-fuchsia-500/5 to-zinc-900 border border-violet-500/25 rounded-3xl p-5 space-y-4 relative overflow-hidden shadow-xl">
+        <div className="absolute top-2.5 right-3 text-4xl opacity-15">🧠</div>
+        <div className="space-y-1.5">
+          <span className="text-[8px] bg-violet-500/20 text-violet-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+            Special Personality Assessment
+          </span>
+          <h3 className="text-sm font-extrabold text-white tracking-tight font-sans">
+            Which Startup Founder Type Are You?
+          </h3>
+          <p className="text-[10px] text-zinc-400 leading-relaxed max-w-sm">
+            Take our short 5-tap psychological quiz to unlock 1 of 8 customized startup founder profiles and custom recommended blueprint paths.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            playSound([392, 523], 'sine', 0.1);
+            setShowQuiz(true);
+          }}
+          className="w-full py-2.5 bg-violet-500 hover:bg-violet-400 text-zinc-950 font-black text-xs rounded-xl transition font-mono uppercase tracking-wider cursor-pointer shadow-md shadow-violet-500/10"
+        >
+          Launch 5-Tap Quiz
+        </button>
+      </div>
+
       {/* Streak, XP & Levels Progression */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-4">
         {/* Level and XP */}
@@ -137,19 +168,41 @@ export default function HustleHub() {
               <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
               <span className="text-xs font-bold tracking-tight">Active Login Streak: <span className="text-emerald-400 font-black font-mono">{streak} {streak === 1 ? 'Day' : 'Days'}</span></span>
             </div>
-            {checkedInToday && (
-              <span className="text-[9px] font-bold font-mono text-emerald-400 flex items-center space-x-1">
-                <Check className="w-3 h-3" />
-                <span>Checked In Today</span>
-              </span>
-            )}
+            
+            <div className="flex items-center space-x-2">
+              {streak > 0 && (
+                <button
+                  onClick={async () => {
+                    try {
+                      playSound([523.25, 659.25], 'sine', 0.1);
+                      const text = `🔥 STREAK UNLOCKED! I am on a ${streak}-day startup blueprint streak on Million Dollar Ideas! 🚀\n\nActive streak: ${streak} days\nLevel: ${Math.floor(xp / 500) + 1}\n\nCan you beat my streak? Join me offline! 💎`;
+                      await navigator.clipboard.writeText(text);
+                      setCopiedStreak(true);
+                      setTimeout(() => setCopiedStreak(false), 2000);
+                      awardXp(150, 'Shared daily streak to social media');
+                    } catch (e) {}
+                  }}
+                  className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold rounded-lg text-[9px] uppercase font-mono tracking-wider transition hover:bg-emerald-500/20 active:scale-95 cursor-pointer"
+                  title="Share your streak"
+                >
+                  <Share2 className="w-3 h-3" />
+                  <span>{copiedStreak ? 'Copied!' : 'Post Streak'}</span>
+                </button>
+              )}
+              {checkedInToday && (
+                <span className="text-[9px] font-bold font-mono text-emerald-400 flex items-center space-x-1">
+                  <Check className="w-3 h-3" />
+                  <span>Checked In Today</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Streak Unlocks Roadmap */}
           <div className="grid grid-cols-5 gap-1.5 text-center">
-            {[1, 2, 3, 4, 5].map((day) => {
+            {[1, 2, 3, 5, 7].map((day) => {
               const isActive = streak >= day;
-              const hasUnlock = day === 2 ? 'Space Tech' : day === 3 ? 'Web3 & DeFi' : day === 5 ? 'BioHacking' : null;
+              const hasUnlock = day === 2 ? 'Space Tech' : day === 3 ? 'Web3 & DeFi' : day === 5 ? 'BioHacking' : day === 7 ? 'Crazy Ideas' : null;
               return (
                 <div key={day} className={`p-2 rounded-xl border flex flex-col items-center justify-between space-y-1.5 ${
                   isActive 
@@ -170,7 +223,7 @@ export default function HustleHub() {
                         ? 'bg-emerald-500/10 text-emerald-400' 
                         : 'bg-zinc-900 text-zinc-605 border border-zinc-850'
                     }`} title={`Unlocks ${hasUnlock}`}>
-                      {day === 2 ? 'Space' : day === 3 ? 'Web3' : 'Bio'}
+                      {day === 2 ? 'Space' : day === 3 ? 'Web3' : day === 5 ? 'Bio' : 'Crazy'}
                     </span>
                   )}
                 </div>
@@ -180,13 +233,15 @@ export default function HustleHub() {
 
           {/* Unlocked status text */}
           <p className="text-[10px] text-zinc-400 leading-normal font-sans">
-            {streak >= 5 
-              ? '🎉 All content unlocked! Space Tech, Web3 & DeFi, and BioHacking are available in the Idea Generator filters!'
+            {streak >= 7 
+              ? '🎉 All content unlocked! Space Tech, Web3 & DeFi, BioHacking, and Crazy Ideas Mode are fully available!'
+              : streak >= 5
+              ? '🚀 BioHacking category unlocked! Maintain consecutive streak to day 7 to unlock Crazy Ideas Mode.'
               : streak >= 3
-              ? '🚀 Space Tech & Web3 categories unlocked! Maintain streak to day 5 to unlock BioHacking.'
+              ? '🚀 Space Tech & Web3 categories unlocked! Maintain consecutive streak to day 5 to unlock BioHacking.'
               : streak >= 2
-              ? '🚀 Space Tech category unlocked! Maintain streak to day 3 to unlock Web3 & DeFi.'
-              : '🔒 Log in consecutive days to unlock rare content categories: Day 2 (Space Tech), Day 3 (Web3 & DeFi), and Day 5 (BioHacking).'}
+              ? '🚀 Space Tech category unlocked! Maintain consecutive streak to day 3 to unlock Web3 & DeFi.'
+              : '🔒 Log in consecutive days to unlock rare content categories: Day 2 (Space Tech), Day 3 (Web3), Day 5 (Bio), and Day 7 (Crazy Ideas Mode).'}
           </p>
         </div>
       </div>
@@ -315,6 +370,9 @@ export default function HustleHub() {
         </button>
       </div>
 
+      {/* Monetization Ad Unit */}
+      <GoogleAd slot="hustle-hub-mid" />
+
       {/* Developer Sandbox Controls */}
       <div className="bg-zinc-900/40 border border-zinc-850 rounded-2xl p-4 space-y-4">
         <span className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest font-mono">
@@ -324,7 +382,7 @@ export default function HustleHub() {
         {/* Simulate Streak Buttons */}
         <div className="space-y-2">
           <p className="text-[11px] font-bold text-zinc-300">Simulate Consecutive Streak:</p>
-          <div className="grid grid-cols-4 gap-1.5 font-mono text-[9px] font-bold uppercase tracking-wide">
+          <div className="grid grid-cols-5 gap-1 font-mono text-[9px] font-bold uppercase tracking-wide">
             <button
               onClick={() => handleSetStreak(1)}
               className="py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition cursor-pointer text-center text-zinc-300"
@@ -335,19 +393,25 @@ export default function HustleHub() {
               onClick={() => handleSetStreak(2)}
               className="py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition cursor-pointer text-center text-emerald-400"
             >
-              Day 2 (Space)
+              Day 2
             </button>
             <button
               onClick={() => handleSetStreak(3)}
               className="py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition cursor-pointer text-center text-cyan-400"
             >
-              Day 3 (Web3)
+              Day 3
             </button>
             <button
               onClick={() => handleSetStreak(5)}
               className="py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition cursor-pointer text-center text-pink-400"
             >
-              Day 5 (Bio)
+              Day 5
+            </button>
+            <button
+              onClick={() => handleSetStreak(7)}
+              className="py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-lg transition cursor-pointer text-center text-purple-450"
+            >
+              Day 7
             </button>
           </div>
         </div>
@@ -372,6 +436,9 @@ export default function HustleHub() {
         <AlertCircle className="w-4 h-4 text-zinc-600 flex-shrink-0 mt-0.5" />
         <span>Sandbox Environment active. All data and payment flows are simulated offline inside your browser's private local sandboxed IndexedDB storage. No real money or telemetry is exchanged.</span>
       </div>
+
+      {/* Founder personality test popup overlay */}
+      <FounderQuiz isOpen={showQuiz} onClose={() => setShowQuiz(false)} />
     </div>
   );
 }

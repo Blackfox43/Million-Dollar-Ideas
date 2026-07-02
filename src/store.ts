@@ -57,10 +57,19 @@ interface AppState {
   checkIn: () => { gainedXp: number; streakUpdated: boolean };
   awardXp: (amount: number, reason?: string) => { unlockedBadge: string | null };
   unlockBadge: (badgeId: string) => boolean;
+
+  // Crazy Ideas Mode (Day 7 Unlock)
+  crazyModeEnabled: boolean;
+  setCrazyModeEnabled: (enabled: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Progression Initial State
+  crazyModeEnabled: localStorage.getItem('m_ideas_crazy_mode') === 'true',
+  setCrazyModeEnabled: (enabled: boolean) => {
+    localStorage.setItem('m_ideas_crazy_mode', enabled.toString());
+    set({ crazyModeEnabled: enabled });
+  },
   streak: (() => {
     const val = localStorage.getItem('m_ideas_streak');
     return val ? parseInt(val, 10) : 0;
@@ -224,7 +233,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentIdea: (idea) => set({ currentIdea: idea }),
 
   generateIdea: async () => {
-    const { filters, isPremiumUser } = get();
+    const { filters, isPremiumUser, crazyModeEnabled } = get();
 
     // Query IndexedDB for matching ideas
     let query: any = db.ideas;
@@ -234,6 +243,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Filter programmatically for 100% accuracy and safety
     matchingIdeas = matchingIdeas.filter((idea: Idea) => {
+      if (crazyModeEnabled) {
+        return idea.niche === 'Crazy Ideas';
+      }
       if (filters.niche !== 'All' && idea.niche !== filters.niche) return false;
       if (filters.budget !== 'All' && idea.budget !== filters.budget) return false;
       if (filters.time_to_launch !== 'All' && idea.time_to_launch !== filters.time_to_launch) return false;
