@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { db, type Idea } from './db';
+import { db as fdb } from './lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface Filters {
   niche: string;
@@ -22,8 +24,8 @@ interface AppState {
   cancelSubscription: () => void;
 
   // Navigation
-  activeTab: 'generate' | 'favorites' | 'stats';
-  setActiveTab: (tab: 'generate' | 'favorites' | 'stats') => void;
+  activeTab: 'generate' | 'favorites' | 'stats' | 'profile';
+  setActiveTab: (tab: 'generate' | 'favorites' | 'stats' | 'profile') => void;
 
   // Filters
   filters: Filters;
@@ -61,9 +63,95 @@ interface AppState {
   // Crazy Ideas Mode (Day 7 Unlock)
   crazyModeEnabled: boolean;
   setCrazyModeEnabled: (enabled: boolean) => void;
+
+  // Firebase Authentication & Database Cloud Synchronization
+  user: any | null; // Firebase User details
+  userLoading: boolean;
+  setUser: (user: any | null) => Promise<void>;
+  syncWithCloud: () => Promise<void>;
+  uploadLocalStateToCloud: () => Promise<void>;
+  downloadCloudStateToLocal: (cloudData: any) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  // Firebase Auth & Cloud Sync State
+  user: null,
+  userLoading: true,
+  setUser: async (user) => {
+    set({ user, userLoading: false });
+    if (user) {
+      await get().syncWithCloud();
+    }
+  },
+
+  syncWithCloud: async () => {
+    const user = get().user;
+    if (!user) return;
+    try {
+      const userRef = doc(fdb, 'users', user.uid);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        await get().downloadCloudStateToLocal(docSnap.data());
+      } else {
+        await get().uploadLocalStateToCloud();
+      }
+    } catch (err) {
+      console.error("Cloud synchronization error:", err);
+    }
+  },
+
+  uploadLocalStateToCloud: async () => {
+    const user = get().user;
+    if (!user) return;
+    try {
+      const userRef = doc(fdb, 'users', user.uid);
+      const state = {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Creator',
+        photoURL: user.photoURL || '',
+        streak: get().streak,
+        xp: get().xp,
+        badges: get().badges,
+        lastActiveDate: get().lastActiveDate,
+        isPremiumUser: get().isPremiumUser,
+        favorites: get().favorites,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(userRef, state, { merge: true });
+    } catch (err) {
+      console.error("Error uploading local state to cloud:", err);
+    }
+  },
+
+  downloadCloudStateToLocal: async (cloudData) => {
+    if (!cloudData) return;
+    
+    localStorage.setItem('m_ideas_streak', (cloudData.streak ?? 0).toString());
+    localStorage.setItem('m_ideas_xp', (cloudData.xp ?? 0).toString());
+    localStorage.setItem('m_ideas_badges', JSON.stringify(cloudData.badges ?? []));
+    localStorage.setItem('m_ideas_last_active', cloudData.lastActiveDate ?? '');
+    localStorage.setItem('m_ideas_premium', (cloudData.isPremiumUser ?? false) ? 'true' : 'false');
+    
+    const cloudFavs = cloudData.favorites ?? [];
+    await db.favorites.clear();
+    for (const ideaId of cloudFavs) {
+      await db.favorites.add({ ideaId, savedAt: Date.now() });
+    }
+    
+    set({
+      streak: cloudData.streak ?? 0,
+      xp: cloudData.xp ?? 0,
+      badges: cloudData.badges ?? [],
+      lastActiveDate: cloudData.lastActiveDate ?? '',
+      isPremiumUser: cloudData.isPremiumUser ?? false,
+      favorites: cloudFavs,
+      checkedInToday: cloudData.lastActiveDate === new Date().toISOString().split('T')[0]
+    });
+    
+    await get().updateStats();
+  },
+
   // Progression Initial State
   crazyModeEnabled: localStorage.getItem('m_ideas_crazy_mode') === 'true',
   setCrazyModeEnabled: (enabled: boolean) => {
@@ -135,6 +223,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().unlockBadge('hustle_legend');
     }
 
+    // Automatically sync progress with Firebase Cloud Firestore
+    get().uploadLocalStateToCloud();
+
     return { gainedXp, streakUpdated };
   },
 
@@ -148,6 +239,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const didUnlock = get().unlockBadge('xp_master');
       if (didUnlock) unlockedBadge = 'xp_master';
     }
+
+    // Automatically sync progress with Firebase Cloud Firestore
+    get().uploadLocalStateToCloud();
 
     return { unlockedBadge };
   },
@@ -169,6 +263,9 @@ export const useAppStore = create<AppState>((set, get) => ({
                   : badgeId === 'unicorn_hunter' ? 400 : 100;
     
     get().awardXp(bonusXp, `Unlocked Badge: ${badgeId}`);
+    
+    // Automatically sync progress with Firebase Cloud Firestore
+    get().uploadLocalStateToCloud();
     return true;
   },
 
@@ -191,11 +288,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.setItem('m_ideas_premium', 'true');
     set({ isPremiumUser: true, showPaywallModal: false });
     get().updateStats();
+    get().uploadLocalStateToCloud();
   },
   cancelSubscription: () => {
     localStorage.removeItem('m_ideas_premium');
     set({ isPremiumUser: false });
     get().updateStats();
+    get().uploadLocalStateToCloud();
   },
 
   // Navigation
@@ -306,6 +405,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (favCount >= 3) {
       get().unlockBadge('vault_keeper');
     }
+    get().uploadLocalStateToCloud();
   },
 
   // Stats for the stats screen / dashboard helper
