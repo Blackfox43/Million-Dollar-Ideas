@@ -130,6 +130,9 @@ export default function UserProfile() {
       if (err.code === 'auth/user-not-found') friendlyMessage = 'No account associated with this email.';
       if (err.code === 'auth/email-already-in-use') friendlyMessage = 'This email address is already in use.';
       if (err.code === 'auth/weak-password') friendlyMessage = 'Password must be at least 6 characters.';
+      if (err.code === 'auth/operation-not-allowed') {
+        friendlyMessage = 'Firebase Error (operation-not-allowed): Email/Password login is disabled in your Firebase console. Go to Build > Authentication > Sign-in Method to enable it, or use Local Sandbox Mode below.';
+      }
       setErrorMsg(friendlyMessage);
       playSound(200, 0.3); // warning fail low sound
     } finally {
@@ -146,7 +149,11 @@ export default function UserProfile() {
       await setUser(credential.user);
     } catch (err: any) {
       console.error(err);
-      if (err.code !== 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/popup-closed-by-user') {
+        // quiet fail
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg('Firebase Error (operation-not-allowed): Google login is disabled in your Firebase Console. Enable Google under Build > Authentication > Sign-in Method, or use Local Sandbox Mode below.');
+      } else {
         setErrorMsg('Google Sign-In was blocked or cancelled. Try email/password registration instead.');
       }
       playSound(200, 0.3);
@@ -155,9 +162,31 @@ export default function UserProfile() {
     }
   };
 
+  const handleGuestSandboxMode = async () => {
+    setErrorMsg(null);
+    setAuthLoading(true);
+    try {
+      const sandboxUser = {
+        uid: 'sandbox_guest_user_id',
+        email: 'sandbox.guest@local.test',
+        displayName: 'Sandbox Creator (Local)',
+        photoURL: '',
+        isSandbox: true
+      };
+      playSound(523.25, 0.25);
+      await setUser(sandboxUser);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      if (user && !user.isSandbox) {
+        await signOut(auth);
+      }
       setUser(null);
       playSound(220, 0.2); // log out sweep down sound
       // Clear URL params
@@ -356,8 +385,25 @@ export default function UserProfile() {
               <span>Authenticate with Google</span>
             </button>
 
-            <div className="mt-6 text-center text-[10px] font-mono text-zinc-600 leading-relaxed max-w-xs mx-auto">
-              <span>By signing in, your current offline XP achievements will sync with this cloud account.</span>
+            {/* Local Sandbox Option */}
+            <div className="flex items-center space-x-3 my-5">
+              <div className="h-[1px] bg-zinc-800/60 flex-1" />
+              <span className="text-[9px] font-mono tracking-widest uppercase text-zinc-600">Local Bypass Option</span>
+              <div className="h-[1px] bg-zinc-800/60 flex-1" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGuestSandboxMode}
+              disabled={authLoading}
+              className="w-full bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/20 hover:border-emerald-500/30 text-emerald-400 font-bold py-3 px-4 rounded-2xl transition text-xs font-mono tracking-wider uppercase flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shadow-sm"
+            >
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Use Local Sandbox Mode</span>
+            </button>
+
+            <div className="mt-5 text-center text-[10px] font-mono text-zinc-600 leading-relaxed max-w-xs mx-auto">
+              <span>By signing in, your current offline XP achievements will sync with this cloud account. Use Sandbox Mode if Auth is not yet enabled in the Firebase Console.</span>
             </div>
           </motion.div>
         ) : (

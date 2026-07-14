@@ -97,6 +97,19 @@ export default function App() {
     handleStripeCallback();
   }, []);
 
+  // Listen to Firebase Auth state updates
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      const currentUser = useAppStore.getState().user;
+      if (currentUser?.isSandbox) {
+        // Keep the local sandbox user
+        return;
+      }
+      useAppStore.getState().setUser(firebaseUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     async function initApp() {
       // 1. Seed database with 50 startups if empty

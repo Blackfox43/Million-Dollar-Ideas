@@ -86,7 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   syncWithCloud: async () => {
     const user = get().user;
-    if (!user) return;
+    if (!user || user.isSandbox) return;
     try {
       const userRef = doc(fdb, 'users', user.uid);
       const docSnap = await getDoc(userRef);
@@ -102,7 +102,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   uploadLocalStateToCloud: async () => {
     const user = get().user;
-    if (!user) return;
+    if (!user || user.isSandbox) return;
     try {
       const userRef = doc(fdb, 'users', user.uid);
       const state = {
