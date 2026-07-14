@@ -150,7 +150,7 @@ export default function UserProfile() {
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/popup-closed-by-user') {
-        // quiet fail
+        setErrorMsg('Google Sign-In was cancelled. You can try again, or use the Local Sandbox Mode below.');
       } else if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg('Firebase Error (operation-not-allowed): Google login is disabled in your Firebase Console. Enable Google under Build > Authentication > Sign-in Method, or use Local Sandbox Mode below.');
       } else {

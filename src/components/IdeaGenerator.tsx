@@ -476,10 +476,10 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
               return (
                 <motion.div
                   key={currentIdea.id}
-                  initial={{ opacity: 0, scale: 0.97, y: 15 }}
+                  initial={{ opacity: 0, scale: 0.98, y: 24 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.97, y: -15 }}
-                  transition={{ type: 'spring', damping: 22, stiffness: 180 }}
+                  exit={{ opacity: 0, scale: 0.98, y: -20 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 160 }}
                   className={`border rounded-3xl p-6 shadow-2xl relative flex flex-col space-y-5 bg-zinc-900 ${rStyle.borderClass} ${rStyle.glowClass} ${rStyle.bgClass}`}
                 >
                   {/* Premium Glow indicator */}
@@ -559,7 +559,12 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                   {/* Segmented Blueprint Contents */}
                   <div className="space-y-3 font-sans text-xs">
                     {blueprintTab === 'concept' && (
-                      <div className="space-y-3 animate-fade-in">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="space-y-3"
+                      >
                         {/* Problem */}
                         <div className="space-y-1 bg-zinc-950/45 p-3 rounded-xl border border-zinc-900">
                           <span className="text-[8px] font-black font-mono text-zinc-500 uppercase tracking-widest flex items-center space-x-1.5">
@@ -592,11 +597,16 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                             {blueprint.targetAudience}
                           </p>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
 
                     {blueprintTab === 'financials' && (
-                      <div className="space-y-3 animate-fade-in">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="space-y-3"
+                      >
                         {/* Monetization */}
                         <div className="space-y-2 bg-zinc-950/45 p-3 rounded-xl border border-zinc-900">
                           <span className="text-[8px] font-black font-mono text-zinc-500 uppercase tracking-widest flex items-center space-x-1.5">
@@ -634,11 +644,16 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                             {blueprint.marketingStrategy}
                           </p>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
 
                     {blueprintTab === 'launch' && (
-                      <div className="space-y-3 animate-fade-in">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="space-y-3"
+                      >
                         {/* First 10 Steps */}
                         <div className="space-y-2 bg-zinc-950/45 p-3 rounded-xl border border-zinc-900 max-h-48 overflow-y-auto">
                           <span className="text-[8px] font-black font-mono text-emerald-400 uppercase tracking-widest flex items-center space-x-1.5 sticky top-0 bg-zinc-950/90 py-0.5 z-10">
@@ -689,7 +704,7 @@ ${blueprint.steps10.map((s, i) => `   ${i + 1}. ${s}`).join('\n')}
                             </p>
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
                   </div>
 
