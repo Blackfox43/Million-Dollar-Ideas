@@ -13,7 +13,7 @@ import {
 } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 
-import { auth, googleProvider, db as fdb } from '../lib/firebase';
+import { auth, googleProvider, db as fdb, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAppStore } from '../store';
 
 // Define gamified tier names based on XP
@@ -148,13 +148,15 @@ export default function UserProfile() {
       playSound(523.25, 0.25);
       await setUser(credential.user);
     } catch (err: any) {
-      console.error(err);
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Google Sign-In was cancelled. You can try again, or use the Local Sandbox Mode below.');
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Firebase Error (operation-not-allowed): Google login is disabled in your Firebase Console. Enable Google under Build > Authentication > Sign-in Method, or use Local Sandbox Mode below.');
       } else {
-        setErrorMsg('Google Sign-In was blocked or cancelled. Try email/password registration instead.');
+        console.error(err);
+        if (err.code === 'auth/operation-not-allowed') {
+          setErrorMsg('Firebase Error (operation-not-allowed): Google login is disabled in your Firebase Console. Enable Google under Build > Authentication > Sign-in Method, or use Local Sandbox Mode below.');
+        } else {
+          setErrorMsg('Google Sign-In was blocked or cancelled. Try email/password registration instead.');
+        }
       }
       playSound(200, 0.3);
     } finally {
@@ -212,10 +214,15 @@ export default function UserProfile() {
 
   const handleSaveDisplayName = async () => {
     if (!user || !editNameValue.trim()) return;
+    const path = `users/${user.uid}`;
     try {
       await updateProfile(user, { displayName: editNameValue.trim() });
       const userRef = doc(fdb, 'users', user.uid);
-      await updateDoc(userRef, { displayName: editNameValue.trim() });
+      try {
+        await updateDoc(userRef, { displayName: editNameValue.trim() });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.UPDATE, path);
+      }
       await syncWithCloud();
       setIsEditingName(false);
       playSound(500, 0.1);

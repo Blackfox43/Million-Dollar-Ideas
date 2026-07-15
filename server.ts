@@ -14,10 +14,34 @@ app.use(express.json());
 
 // Initialize Stripe helper with lazy check to prevent startup crashes
 const getStripeInstance = (): Stripe | null => {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey || secretKey.trim() === "" || secretKey === "YOUR_STRIPE_SECRET_KEY") {
+  let secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
     return null;
   }
+
+  // Remove accidental surrounding double, single quotes, or backticks
+  secretKey = secretKey.trim();
+  if ((secretKey.startsWith('"') && secretKey.endsWith('"')) ||
+      (secretKey.startsWith("'") && secretKey.endsWith("'")) ||
+      (secretKey.startsWith("`") && secretKey.endsWith("`"))) {
+    secretKey = secretKey.slice(1, -1).trim();
+  }
+
+  // Strip any characters that are NOT printable ASCII characters (excluding spaces as well)
+  // Standard ASCII printable chars (excluding space) are in the hex range 21 to 7E.
+  const originalLength = secretKey.length;
+  secretKey = secretKey.replace(/[^\x21-\x7E]/g, "");
+  const sanitizedLength = secretKey.length;
+
+  if (!secretKey || secretKey === "" || secretKey === "YOUR_STRIPE_SECRET_KEY") {
+    return null;
+  }
+
+  // Secure debug logging to check key formatting issues
+  const prefix = secretKey.substring(0, 8);
+  const suffix = secretKey.substring(secretKey.length - 4);
+  console.log(`[Stripe Init] Key sanitization check: Original length: ${originalLength}, Sanitized length: ${sanitizedLength}. Prefix: ${prefix}..., Suffix: ...${suffix}`);
+
   return new Stripe(secretKey);
 };
 
@@ -61,8 +85,20 @@ app.post("/api/payments/create-checkout-session", async (req, res) => {
 
     res.json({ url: session.url });
   } catch (error: any) {
-    console.error("Error creating stripe session:", error);
-    res.status(500).json({ error: "STRIPE_ERROR", message: error.message });
+    console.error("Error creating stripe session. Full details:", {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      param: error.param,
+      statusCode: error.statusCode,
+      stack: error.stack
+    });
+    res.status(error.statusCode || 500).json({
+      error: "STRIPE_ERROR",
+      type: error.type || "UnknownError",
+      code: error.code || null,
+      message: error.message || "Unknown error creating Stripe session."
+    });
   }
 });
 

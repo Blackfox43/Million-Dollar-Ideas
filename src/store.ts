@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db, type Idea } from './db';
-import { db as fdb } from './lib/firebase';
+import { db as fdb, handleFirestoreError, OperationType } from './lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface Filters {
@@ -87,10 +87,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncWithCloud: async () => {
     const user = get().user;
     if (!user || user.isSandbox) return;
+    const path = `users/${user.uid}`;
     try {
       const userRef = doc(fdb, 'users', user.uid);
-      const docSnap = await getDoc(userRef);
-      if (docSnap.exists()) {
+      let docSnap;
+      try {
+        docSnap = await getDoc(userRef);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, path);
+        return;
+      }
+      if (docSnap && docSnap.exists()) {
         await get().downloadCloudStateToLocal(docSnap.data());
       } else {
         await get().uploadLocalStateToCloud();
@@ -103,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   uploadLocalStateToCloud: async () => {
     const user = get().user;
     if (!user || user.isSandbox) return;
+    const path = `users/${user.uid}`;
     try {
       const userRef = doc(fdb, 'users', user.uid);
       const state = {
@@ -118,7 +126,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         favorites: get().favorites,
         updatedAt: new Date().toISOString()
       };
-      await setDoc(userRef, state, { merge: true });
+      try {
+        await setDoc(userRef, state, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, path);
+      }
     } catch (err) {
       console.error("Error uploading local state to cloud:", err);
     }

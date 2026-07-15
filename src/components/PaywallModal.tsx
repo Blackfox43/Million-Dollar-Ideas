@@ -82,12 +82,12 @@ export default function PaywallModal() {
           // Redirect to Stripe checkout page
           window.location.href = data.url;
         } else {
-          console.error("Stripe session creation error:", data);
+          console.error("Stripe session creation error details:", JSON.stringify(data));
           alert(`Stripe Session Creation Failed: ${data.message || 'Unknown Server Error'}`);
           setIsProcessing(false);
         }
       } catch (err: any) {
-        console.error("Failed to initiate checkout session:", err);
+        console.error("Failed to initiate checkout session. Error:", err.message || err);
         alert(`Failed to contact checkout service: ${err.message || 'Unknown error'}`);
         setIsProcessing(false);
       }
