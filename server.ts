@@ -1,156 +1,143 @@
-import express from "express";
-import path from "path";
-import dotenv from "dotenv";
-import Stripe from "stripe";
-import { createServer as createViteServer } from "vite";
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import Stripe from 'stripe';
+import * as admin from 'firebase-admin';
 
-// Load environment variables
 dotenv.config();
 
+// Initialize Firebase Admin SDK
+// Make sure your FIREBASE_SERVICE_ACCOUNT env variable points to your service account key file
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(), // or admin.credential.cert(serviceAccount)
+  });
+}
+
+const db = admin.firestore();
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 5000;
 
-app.use(express.json());
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16' as any,
+});
 
-// Initialize Stripe helper with lazy check to prevent startup crashes
-const getStripeInstance = (): Stripe | null => {
-  let secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    return null;
-  }
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 
-  // Remove accidental surrounding double, single quotes, or backticks
-  secretKey = secretKey.trim();
-  if ((secretKey.startsWith('"') && secretKey.endsWith('"')) ||
-      (secretKey.startsWith("'") && secretKey.endsWith("'")) ||
-      (secretKey.startsWith("`") && secretKey.endsWith("`"))) {
-    secretKey = secretKey.slice(1, -1).trim();
-  }
+// Stripe requires the RAW body string to verify signature authenticity on Webhooks.
+// We declare this endpoint BEFORE app.use(express.json()) so it intercepts raw payloads.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature']!;
+  let event: Stripe.Event;
 
-  // Strip any characters that are NOT printable ASCII characters (excluding spaces as well)
-  // Standard ASCII printable chars (excluding space) are in the hex range 21 to 7E.
-  const originalLength = secretKey.length;
-  secretKey = secretKey.replace(/[^\x21-\x7E]/g, "");
-  const sanitizedLength = secretKey.length;
-
-  if (!secretKey || secretKey === "" || secretKey === "YOUR_STRIPE_SECRET_KEY") {
-    return null;
-  }
-
-  // Secure debug logging to check key formatting issues
-  const prefix = secretKey.substring(0, 8);
-  const suffix = secretKey.substring(secretKey.length - 4);
-  console.log(`[Stripe Init] Key sanitization check: Original length: ${originalLength}, Sanitized length: ${sanitizedLength}. Prefix: ${prefix}..., Suffix: ...${suffix}`);
-
-  return new Stripe(secretKey);
-};
-
-// API: Stripe Checkout Session Creation
-app.post("/api/payments/create-checkout-session", async (req, res) => {
   try {
-    const stripe = getStripeInstance();
-    if (!stripe) {
-      return res.status(200).json({
-        error: "STRIPE_NOT_CONFIGURED",
-        message: "Stripe is currently in Sandbox/Simulator mode because STRIPE_SECRET_KEY is not defined in environment variables."
-      });
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err: any) {
+    console.error(`Webhook Signature verification failed: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    // 1. User successfully pays for a recurring plan
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const firebaseUid = session.metadata?.firebaseUid;
+
+      if (firebaseUid) {
+        await db.collection('users').doc(firebaseUid).set({
+          isPremium: true,
+          stripeCustomerId: session.customer,
+          stripeSubscriptionId: session.subscription,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log(`User ${firebaseUid} successfully upgraded to Premium.`);
+      }
     }
 
-    const hostUrl = process.env.APP_URL || req.headers.referer || "http://localhost:3000";
-    // Strip trailing slash if present
-    const cleanHostUrl = hostUrl.endsWith("/") ? hostUrl.slice(0, -1) : hostUrl;
+    // 2. User cancels their subscription, or card fails to renew
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
 
+      const userQuery = await db.collection('users').where('stripeCustomerId', '==', customerId).limit(1).get();
+      if (!userQuery.empty) {
+        const userDoc = userQuery.docs[0];
+        await userDoc.ref.set({
+          isPremium: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log(`User ${userDoc.id} subscription canceled. Downgraded from Premium.`);
+      }
+    }
+
+    res.json({ received: true });
+  } catch (dbError: any) {
+    console.error(`Database operations failed for event ${event.type}:`, dbError);
+    res.status(500).send('Internal Server Error updating billing document.');
+  }
+});
+
+// Parse regular JSON bodies for standard endpoints
+app.use(express.json());
+
+// API Endpoint: Trigger Stripe Checkout
+app.post('/api/checkout/create-session', async (req, res) => {
+  const { firebaseUid, email } = req.body;
+
+  if (!firebaseUid || !email) {
+    return res.status(400).json({ error: 'Missing user credentials (UID and email)' });
+  }
+
+  try {
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+      payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "Million Dollar Ideas - Creator Subscription",
-              description: "Lifetime access to 1,000+ elite side-hustle concepts, custom filters, and white-label card exports.",
-            },
-            unit_amount: 900, // $9.00 USD
-            recurring: {
-              interval: "month",
-            },
-          },
+          price: process.env.STRIPE_PRICE_ID!, // Your Stripe Subscription Plan Price ID
           quantity: 1,
         },
       ],
-      mode: "subscription",
-      success_url: `${cleanHostUrl}?checkout_success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${cleanHostUrl}?checkout_cancel=true`,
+      mode: 'subscription',
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/hub?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/`,
+      customer_email: email,
+      metadata: {
+        firebaseUid: firebaseUid, // Important: Tells our webhook which database user to upgrade
+      },
     });
 
     res.json({ url: session.url });
   } catch (error: any) {
-    console.error("Error creating stripe session. Full details:", {
-      message: error.message,
-      type: error.type,
-      code: error.code,
-      param: error.param,
-      statusCode: error.statusCode,
-      stack: error.stack
-    });
-    res.status(error.statusCode || 500).json({
-      error: "STRIPE_ERROR",
-      type: error.type || "UnknownError",
-      code: error.code || null,
-      message: error.message || "Unknown error creating Stripe session."
-    });
+    console.error('Failed to generate Stripe checkout session:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// API: Verify Stripe Session
-app.get("/api/payments/verify-session/:sessionId", async (req, res) => {
+// API Endpoint: Access Stripe Billing Portal to manage, cancel, or update cards
+app.post('/api/checkout/portal', async (req, res) => {
+  const { stripeCustomerId } = req.body;
+
+  if (!stripeCustomerId) {
+    return res.status(400).json({ error: 'User does not possess an active Stripe profile' });
+  }
+
   try {
-    const { sessionId } = req.params;
-    const stripe = getStripeInstance();
-    if (!stripe) {
-      return res.status(400).json({ error: "STRIPE_NOT_CONFIGURED", message: "Stripe key is missing." });
-    }
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/hub`,
+    });
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status === "paid") {
-      res.json({ success: true, payment_status: session.payment_status });
-    } else {
-      res.json({ success: false, payment_status: session.payment_status, message: "Payment has not been completed." });
-    }
+    res.json({ url: portalSession.url });
   } catch (error: any) {
-    console.error("Error verifying stripe session:", error);
-    res.status(500).json({ error: "STRIPE_ERROR", message: error.message });
+    console.error('Failed to open billing customer portal:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// API: Health Check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", stripeConfigured: !!getStripeInstance() });
-});
-
-// Setup Vite or Static assets middleware
-async function setupViteMiddleware() {
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Starting server in development mode with Vite middleware...");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    console.log("Starting server in production mode with static asset serving...");
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-}
-
-setupViteMiddleware().then(() => {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server is running at http://0.0.0.0:${PORT}`);
-  });
-}).catch(err => {
-  console.error("Failed to setup Vite middleware:", err);
+app.listen(PORT, () => {
+  console.log(`Secure Stripe API online and listening on port ${PORT}`);
 });
